@@ -137,6 +137,17 @@ where
 	) -> [u8; 32] {
 		let domain_separator = Self::compute_domain_separator(address);
 
+		log::error!("{:?} f={:?} t={:?} v={:?} d={:?} g={:?} n={:?} {:?}", 
+			address,
+			from,
+			to,
+			value,
+			data,
+			gaslimit,
+			nonce,
+			deadline,
+		);
+
 		let permit_content = EvmDataWriter::new()
 			.write(H256::from(PERMIT_TYPEHASH))
 			.write(Address(from))
@@ -149,12 +160,16 @@ where
 			.write(deadline)
 			.build();
 		let permit_content = keccak_256(&permit_content);
-
+		log::error!("p content = {:?}", permit_content);
 		let mut pre_digest = Vec::with_capacity(2 + 32 + 32);
 		pre_digest.extend_from_slice(b"\x19\x01");
 		pre_digest.extend_from_slice(&domain_separator);
 		pre_digest.extend_from_slice(&permit_content);
-		keccak_256(&pre_digest)
+		log::error!("pre digest= {:?}", pre_digest);
+
+		let x= keccak_256(&pre_digest);
+		log::error!("permit hash = {:?}", x);
+		x
 	}
 
 	pub fn dispatch_inherent_cost() -> u64 {
@@ -165,6 +180,8 @@ where
 
 	fn dispatch(handle: &mut impl PrecompileHandle) -> EvmResult<PrecompileOutput> {
 		handle.record_cost(Self::dispatch_inherent_cost())?;
+
+		log::error!("got dispatch");
 
 		// PARSE INPUT
 		let mut input = handle.read_input()?;
@@ -217,6 +234,7 @@ where
 			.map_err(|_| revert("invalid permit"))?;
 		let signer = H160::from(H256::from_slice(keccak_256(&signer).as_slice()));
 
+		log::error!("signer {:?}, from {:?}", signer, from);
 		ensure!(
 			signer != H160::zero() && signer == from,
 			revert("invalid permit")
@@ -244,6 +262,7 @@ where
 		let (reason, output) =
 			handle.call(to, transfer, data, Some(gas_limit), false, &sub_context);
 
+		log::error!("got dispatch END {:?} , {:?}", reason, output);
 		match reason {
 			ExitReason::Error(exit_status) => Err(PrecompileFailure::Error { exit_status }),
 			ExitReason::Fatal(exit_status) => Err(PrecompileFailure::Fatal { exit_status }),
